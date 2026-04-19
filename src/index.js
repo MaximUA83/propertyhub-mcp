@@ -67,6 +67,7 @@ const tools = [
   { name: 'get_overdue_invoices', description: 'Список прострочених рахунків (не оплачених) з деталями — хто, скільки днів тому виставлений, яка сума боргу. Для нагадувань орендарям.', inputSchema: { type: 'object', properties: { days_overdue: { type: 'number', description: 'Скільки днів прострочення (default 0 — всі неоплачені)' } } } },
   { name: 'get_financial_summary', description: 'Загальний фінансовий підсумок: нараховано/сплачено/заборговано за період. Параметри: year, month (опціонально). Показує по кожному приміщенню і загалом.', inputSchema: { type: 'object', properties: { year: { type: 'number' }, month: { type: 'number' } }, required: ['year'] } },
   { name: 'get_invoice_details', description: 'Детальна інформація про один рахунок: повні реквізити, список послуг, посилання на PDF. Використовувати коли "покажи рахунок #5 повністю".', inputSchema: { type: 'object', properties: { invoice_id: { type: 'number' } }, required: ['invoice_id'] } },
+  { name: 'get_tax_report', description: 'Податковий звіт про доходи для декларації ФОП. Обчислює отримані оплати за період (квартал/місяць/рік), єдиний податок (5% за замовчуванням для ФОП 3 групи) і військовий збір (1.5%). Розбивка по місяцях і приміщеннях. Приклади: "дохід за 1 квартал 2026 для декларації", "податки за лютий", "річний звіт ФОП за 2026".', inputSchema: { type: 'object', properties: { year: { type: 'number', description: 'Рік (наприклад 2026)' }, quarter: { type: 'number', description: '1-4, номер кварталу. Якщо не вказано — береться весь рік або місяць' }, month: { type: 'number', description: '0-11, місяць. Якщо не вказано — береться квартал або весь рік' }, tax_rate: { type: 'number', description: 'Ставка єдиного податку у %, за замовчуванням 5 (ФОП 3 групи)' } }, required: ['year'] } },
 ];
 
 async function handleTool(name, args) {
@@ -443,6 +444,31 @@ async function handleTool(name, args) {
         email_sent_at: inv.email_sent_at,
         public_url: publicUrl,
         pdf_instruction: publicUrl ? `Для PDF: відкрийте ${publicUrl} і натисніть "Друк / Зберегти PDF"` : 'PDF недоступний (немає токена)',
+      };
+    }
+    
+    case 'get_tax_report': {
+      const params = new URLSearchParams();
+      params.set('year', args.year);
+      if (args.quarter) params.set('quarter', args.quarter);
+      if (args.month !== undefined) params.set('month', args.month);
+      if (args.tax_rate) params.set('tax_rate', args.tax_rate);
+      const r = await api('GET', '/tax-report?' + params.toString());
+      return {
+        period: r.period,
+        date_range: `${r.date_range.start} — ${r.date_range.end}`,
+        total_income: fm(r.total_income),
+        total_invoiced: fm(r.total_invoiced),
+        unpaid_balance: fm(r.unpaid_balance),
+        payments_count: r.payments_count,
+        tax_calculation: {
+          single_tax: `${fm(r.tax.single_tax)} (${r.tax.rate_percent}%)`,
+          military_tax: `${fm(r.tax.military_tax)} (1.5%)`,
+          total_to_pay: fm(r.tax.total_to_pay),
+        },
+        by_month: r.by_month.map(m => ({ period: m.period, amount: fm(m.amount), count: m.count })),
+        by_property: r.by_property.map(p => ({ property: p.property, amount: fm(p.amount), count: p.count })),
+        note: 'Для подання декларації: скопіюйте total_income у Taxer/Вчасно/Дію або експортуйте CSV у вкладці Податкова в PropertyHub.',
       };
     }
     default: throw new Error(`Unknown tool: ${name}`);
