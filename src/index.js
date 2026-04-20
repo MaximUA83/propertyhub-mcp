@@ -67,7 +67,13 @@ const tools = [
   { name: 'get_overdue_invoices', description: 'Список прострочених рахунків (не оплачених) з деталями — хто, скільки днів тому виставлений, яка сума боргу. Для нагадувань орендарям.', inputSchema: { type: 'object', properties: { days_overdue: { type: 'number', description: 'Скільки днів прострочення (default 0 — всі неоплачені)' } } } },
   { name: 'get_financial_summary', description: 'Загальний фінансовий підсумок: нараховано/сплачено/заборговано за період. Параметри: year, month (опціонально). Показує по кожному приміщенню і загалом.', inputSchema: { type: 'object', properties: { year: { type: 'number' }, month: { type: 'number' } }, required: ['year'] } },
   { name: 'get_invoice_details', description: 'Детальна інформація про один рахунок: повні реквізити, список послуг, посилання на PDF. Використовувати коли "покажи рахунок #5 повністю".', inputSchema: { type: 'object', properties: { invoice_id: { type: 'number' } }, required: ['invoice_id'] } },
-  { name: 'get_tax_report', description: 'Податковий звіт про доходи для декларації ФОП. Обчислює отримані оплати за період (квартал/місяць/рік), єдиний податок (5% за замовчуванням для ФОП 3 групи) і військовий збір (1.5%). Розбивка по місяцях і приміщеннях. Приклади: "дохід за 1 квартал 2026 для декларації", "податки за лютий", "річний звіт ФОП за 2026".', inputSchema: { type: 'object', properties: { year: { type: 'number', description: 'Рік (наприклад 2026)' }, quarter: { type: 'number', description: '1-4, номер кварталу. Якщо не вказано — береться весь рік або місяць' }, month: { type: 'number', description: '0-11, місяць. Якщо не вказано — береться квартал або весь рік' }, tax_rate: { type: 'number', description: 'Ставка єдиного податку у %, за замовчуванням 5 (ФОП 3 групи)' } }, required: ['year'] } },
+  { name: 'get_tax_report', description: 'Податковий звіт про доходи для декларації ФОП. Обчислює отримані оплати за період (квартал/місяць/рік) та податки за ставками з налаштувань компанії (за замовчуванням для ФОП 3 групи: 5% єдиний + 1% військовий збір). Включає ручний внесений дохід і сплачені податки. Розбивка по місяцях і приміщеннях. Приклади: "дохід за 1 квартал 2026 для декларації", "податки за лютий", "річний звіт ФОП за 2026".', inputSchema: { type: 'object', properties: { year: { type: 'number', description: 'Рік (наприклад 2026)' }, quarter: { type: 'number', description: '1-4, номер кварталу. Якщо не вказано — береться весь рік або місяць' }, month: { type: 'number', description: '0-11, місяць. Якщо не вказано — береться квартал або весь рік' }, tax_rate: { type: 'number', description: 'Ставка єдиного податку у %, за замовчуванням з налаштувань компанії' }, military_rate: { type: 'number', description: 'Ставка військового збору у %, за замовчуванням з налаштувань компанії' } }, required: ['year'] } },
+  { name: 'get_tax_settings', description: 'Отримати поточні податкові налаштування компанії (група ФОП, ставки єдиного податку і військового збору, налаштування ЄСВ).', inputSchema: { type: 'object', properties: {} } },
+  { name: 'update_tax_settings', description: 'Оновити податкові налаштування компанії. Усі поля опціональні — вказуйте тільки ті що змінюєте. ЄСВ за замовчуванням вимкнений (сплачується через іншу систему), якщо потрібно включити — передайте tax_esv_enabled=true.', inputSchema: { type: 'object', properties: { tax_fop_group: { type: 'number', description: 'Група ФОП: 1, 2 або 3' }, tax_single_rate: { type: 'number', description: 'Ставка єдиного податку у % (для 3 групи зазвичай 5)' }, tax_military_rate: { type: 'number', description: 'Ставка військового збору у % (зазвичай 1)' }, tax_esv_enabled: { type: 'boolean', description: 'Чи включати ЄСВ у розрахунок' }, tax_esv_monthly: { type: 'number', description: 'Сума ЄСВ на місяць (2026 мінімум: 1902.34 ₴)' } } } },
+  { name: 'add_manual_income', description: 'Додати ручне внесення доходу за минулий період (коли програма ще не використовувалась). Приклад: "додай дохід 180000 за Q1 2026" коли Q1 ми відпрацювали без програми. Для періоду передайте АБО quarter (1-4) АБО month (0-11), або нічого для всього року.', inputSchema: { type: 'object', properties: { year: { type: 'number' }, quarter: { type: 'number', description: '1-4 (опціонально)' }, month: { type: 'number', description: '0-11 (опціонально)' }, amount: { type: 'number', description: 'Сума у гривнях' }, note: { type: 'string' } }, required: ['year', 'amount'] } },
+  { name: 'add_tax_payment', description: 'Записати факт сплати податку. Типи: single_tax (єдиний), military_tax (військовий), esv, other. Приклад: "запиши що 15 квітня заплатили єдиний за Q1 — 9000 грн, платіжка №123".', inputSchema: { type: 'object', properties: { year: { type: 'number' }, quarter: { type: 'number' }, month: { type: 'number' }, type: { type: 'string', description: 'single_tax, military_tax, esv, other' }, amount: { type: 'number' }, paid_date: { type: 'string', description: 'YYYY-MM-DD' }, note: { type: 'string' } }, required: ['year', 'type', 'amount'] } },
+  { name: 'what_if_taxes', description: 'Прогноз податків: скільки платити якщо будуть здані усі вакантні або вибіркові приміщення. Приклад: "які суми податку платити якщо здамо Приміщення 3 і 5 на 6 місяців". Якщо property_ids порожній — береться всі вакантні приміщення.', inputSchema: { type: 'object', properties: { months: { type: 'number', description: 'За скільки місяців рахувати, default 3' }, property_ids: { type: 'array', items: { type: 'number' }, description: 'ID приміщень. Якщо не вказано — всі вакантні' } } } },
+  { name: 'compare_tax_periods', description: 'Порівняти два періоди: скільки отримали, нарахували податків, сплатили. Приклад: "порівняй скільки податків заплатили за Q2 з Q1", "травень vs квітень", "2026 vs 2025". Період А — це той про який порівнюємо (останній/поточний), B — з чим порівнюємо.', inputSchema: { type: 'object', properties: { year1: { type: 'number', description: 'Рік періоду A' }, q1: { type: 'number', description: 'Квартал A 1-4 (опціонально)' }, m1: { type: 'number', description: 'Місяць A 0-11 (опціонально)' }, year2: { type: 'number', description: 'Рік періоду B' }, q2: { type: 'number', description: 'Квартал B 1-4 (опціонально)' }, m2: { type: 'number', description: 'Місяць B 0-11 (опціонально)' } }, required: ['year1', 'year2'] } },
 ];
 
 async function handleTool(name, args) {
@@ -453,22 +459,170 @@ async function handleTool(name, args) {
       if (args.quarter) params.set('quarter', args.quarter);
       if (args.month !== undefined) params.set('month', args.month);
       if (args.tax_rate) params.set('tax_rate', args.tax_rate);
+      if (args.military_rate) params.set('military_rate', args.military_rate);
       const r = await api('GET', '/tax-report?' + params.toString());
       return {
         period: r.period,
         date_range: `${r.date_range.start} — ${r.date_range.end}`,
         total_income: fm(r.total_income),
+        actual_income: fm(r.actual_income),
+        manual_income: r.manual_income > 0 ? fm(r.manual_income) : null,
         total_invoiced: fm(r.total_invoiced),
         unpaid_balance: fm(r.unpaid_balance),
         payments_count: r.payments_count,
         tax_calculation: {
           single_tax: `${fm(r.tax.single_tax)} (${r.tax.rate_percent}%)`,
-          military_tax: `${fm(r.tax.military_tax)} (1.5%)`,
+          military_tax: `${fm(r.tax.military_tax)} (${r.tax.military_tax_percent}%)`,
+          esv: r.tax.esv_enabled ? `${fm(r.tax.esv_total)} (${r.months_in_period} міс × ${r.tax.esv_monthly})` : 'не включено (сплачується окремо)',
           total_to_pay: fm(r.tax.total_to_pay),
         },
-        by_month: r.by_month.map(m => ({ period: m.period, amount: fm(m.amount), count: m.count })),
+        paid_taxes: r.paid_taxes.total > 0 ? {
+          total: fm(r.paid_taxes.total),
+          remaining: fm(r.paid_taxes.remaining),
+          by_type: Object.fromEntries(Object.entries(r.paid_taxes.by_type).map(([k, v]) => [k, fm(v)])),
+        } : null,
+        by_month: r.by_month.map(m => ({ period: m.period, amount: fm(m.amount), count: m.count, source: m.source })),
         by_property: r.by_property.map(p => ({ property: p.property, amount: fm(p.amount), count: p.count })),
         note: 'Для подання декларації: скопіюйте total_income у Taxer/Вчасно/Дію або експортуйте CSV у вкладці Податкова в PropertyHub.',
+      };
+    }
+    
+    case 'get_tax_settings': {
+      const company = await api('GET', '/company');
+      return {
+        fop_group: company.tax_fop_group ?? 3,
+        single_tax_rate: `${company.tax_single_rate ?? 5}%`,
+        military_tax_rate: `${company.tax_military_rate ?? 1}%`,
+        esv_enabled: !!company.tax_esv_enabled,
+        esv_monthly: company.tax_esv_enabled ? fm(company.tax_esv_monthly ?? 1902.34) : 'не включено (сплачується окремо)',
+      };
+    }
+    
+    case 'update_tax_settings': {
+      const cur = await api('GET', '/company');
+      const payload = {
+        name: cur.name, edrpou: cur.edrpou, iban: cur.iban, address: cur.address, phone: cur.phone,
+        tax_fop_group: args.tax_fop_group !== undefined ? args.tax_fop_group : cur.tax_fop_group,
+        tax_single_rate: args.tax_single_rate !== undefined ? args.tax_single_rate : cur.tax_single_rate,
+        tax_military_rate: args.tax_military_rate !== undefined ? args.tax_military_rate : cur.tax_military_rate,
+        tax_esv_enabled: args.tax_esv_enabled !== undefined ? args.tax_esv_enabled : cur.tax_esv_enabled,
+        tax_esv_monthly: args.tax_esv_monthly !== undefined ? args.tax_esv_monthly : cur.tax_esv_monthly,
+      };
+      await api('PUT', '/company', payload);
+      return {
+        success: true,
+        message: 'Податкові налаштування оновлено',
+        new_settings: {
+          fop_group: payload.tax_fop_group,
+          single_tax_rate: `${payload.tax_single_rate}%`,
+          military_tax_rate: `${payload.tax_military_rate}%`,
+          esv_enabled: payload.tax_esv_enabled,
+          esv_monthly: payload.tax_esv_monthly,
+        },
+      };
+    }
+    
+    case 'add_manual_income': {
+      const r = await api('POST', '/tax-report/manual-income', {
+        year: args.year,
+        quarter: args.quarter || null,
+        month: args.month !== undefined ? args.month : null,
+        amount: args.amount,
+        note: args.note || '',
+      });
+      const periodStr = args.quarter ? `Q${args.quarter} ${args.year}` : args.month !== undefined ? `${MO[args.month]} ${args.year}` : `${args.year} рік`;
+      return {
+        success: true,
+        id: r.id,
+        message: `Додано ручний дохід ${fm(args.amount)} за ${periodStr}`,
+      };
+    }
+    
+    case 'add_tax_payment': {
+      const r = await api('POST', '/tax-report/paid-taxes', {
+        year: args.year,
+        quarter: args.quarter || null,
+        month: args.month !== undefined ? args.month : null,
+        type: args.type,
+        amount: args.amount,
+        paid_date: args.paid_date || new Date().toISOString().slice(0, 10),
+        note: args.note || '',
+      });
+      const typeLabels = { single_tax: 'Єдиний податок', military_tax: 'Військовий збір', esv: 'ЄСВ', other: 'Інше' };
+      const periodStr = args.quarter ? `Q${args.quarter} ${args.year}` : args.month !== undefined ? `${MO[args.month]} ${args.year}` : `${args.year} рік`;
+      return {
+        success: true,
+        id: r.id,
+        message: `Записано сплату: ${typeLabels[args.type] || args.type} ${fm(args.amount)} за ${periodStr}`,
+      };
+    }
+    
+    case 'what_if_taxes': {
+      const params = new URLSearchParams();
+      params.set('months', args.months || 3);
+      if (args.property_ids && args.property_ids.length > 0) {
+        params.set('property_ids', args.property_ids.join(','));
+      }
+      const r = await api('GET', '/tax-report/what-if?' + params.toString());
+      return {
+        scenario: r.scenario,
+        period_months: r.months,
+        monthly_income_uah: fm(r.total_monthly_income_uah),
+        total_period_income: fm(r.total_period_income_uah),
+        tax_breakdown: {
+          single_tax: `${fm(r.tax.single_tax)} (${r.settings.single_rate}%)`,
+          military_tax: `${fm(r.tax.military_tax)} (${r.settings.military_rate}%)`,
+          esv: r.settings.esv_enabled ? `${fm(r.tax.esv_total)} (${r.months} міс)` : 'не включено',
+          total_tax: fm(r.tax.total),
+        },
+        net_income_after_tax: fm(r.net_income_after_tax),
+        per_property: r.per_property.map(p => ({
+          name: p.name,
+          status: p.status === 'vacant' ? 'вакантне' : 'здане',
+          rent: `${p.rent_amount} ${p.currency}${p.currency !== 'UAH' ? ` × ${p.exchange_rate}` : ''}`,
+          monthly_uah: fm(p.monthly_uah),
+          period_total: fm(p.period_uah),
+        })),
+        note: 'Прогноз виконано за поточними ставками з приміщень (rent_amount і exchange_rate). Для коректних USD/EUR — переконайтесь що курси оновлені.',
+      };
+    }
+    
+    case 'compare_tax_periods': {
+      const params = new URLSearchParams();
+      params.set('year1', args.year1);
+      params.set('year2', args.year2);
+      if (args.q1) params.set('q1', args.q1);
+      if (args.m1 !== undefined) params.set('m1', args.m1);
+      if (args.q2) params.set('q2', args.q2);
+      if (args.m2 !== undefined) params.set('m2', args.m2);
+      const r = await api('GET', '/tax-report/compare?' + params.toString());
+      const pct = r.diff.income_percent;
+      const trend = r.diff.income > 0 ? '📈 зростання' : r.diff.income < 0 ? '📉 спад' : '➖ без змін';
+      return {
+        period_a: {
+          label: r.a.label,
+          income: fm(r.a.total_income),
+          ...(r.a.manual_income > 0 ? { manual_income_included: fm(r.a.manual_income) } : {}),
+          single_tax: fm(r.a.single_tax),
+          military_tax: fm(r.a.military_tax),
+          total_tax_calculated: fm(r.a.total_tax_calculated),
+          total_tax_paid: fm(r.a.total_tax_paid),
+        },
+        period_b: {
+          label: r.b.label,
+          income: fm(r.b.total_income),
+          ...(r.b.manual_income > 0 ? { manual_income_included: fm(r.b.manual_income) } : {}),
+          single_tax: fm(r.b.single_tax),
+          military_tax: fm(r.b.military_tax),
+          total_tax_calculated: fm(r.b.total_tax_calculated),
+          total_tax_paid: fm(r.b.total_tax_paid),
+        },
+        difference: {
+          trend,
+          income: `${r.diff.income >= 0 ? '+' : ''}${fm(r.diff.income)}${pct !== null ? ` (${pct >= 0 ? '+' : ''}${pct}%)` : ''}`,
+          tax_calculated: `${r.diff.total_tax_calculated >= 0 ? '+' : ''}${fm(r.diff.total_tax_calculated)}`,
+          tax_paid: `${r.diff.total_tax_paid >= 0 ? '+' : ''}${fm(r.diff.total_tax_paid)}`,
+        },
       };
     }
     default: throw new Error(`Unknown tool: ${name}`);
